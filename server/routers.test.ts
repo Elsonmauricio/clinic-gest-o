@@ -12,6 +12,8 @@ function createAdminContext(): TrpcContext {
       name: "Admin User",
       loginMethod: "manus",
       role: "admin",
+      linkedDoctorId: null,
+      linkedPatientId: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),
@@ -34,6 +36,8 @@ function createUserContext(): TrpcContext {
       name: "Regular User",
       loginMethod: "manus",
       role: "user",
+      linkedDoctorId: null,
+      linkedPatientId: null,
       createdAt: new Date(),
       updatedAt: new Date(),
       lastSignedIn: new Date(),
@@ -95,7 +99,6 @@ describe("Doctor Router", () => {
         email: "joao@example.com",
         phone: "123456789",
         specialtyId: 1,
-        licenseNumber: "CRM123456",
         bio: "Médico especialista",
       });
       expect(result.success).toBe(true);
@@ -113,7 +116,6 @@ describe("Doctor Router", () => {
         email: "maria@example.com",
         phone: "987654321",
         specialtyId: 1,
-        licenseNumber: "CRM654321",
         bio: "Médica especialista",
       });
       expect.fail("Should have thrown an error");
@@ -320,7 +322,6 @@ describe("Authorization Tests", () => {
         email: "test@example.com",
         phone: "123",
         specialtyId: 1,
-        licenseNumber: "TEST123",
       });
       expect.fail("Should have thrown FORBIDDEN");
     } catch (error: any) {

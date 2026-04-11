@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -20,9 +20,13 @@ export default function Appointments() {
   const { data: patients } = trpc.patient.list.useQuery();
   const { data: doctors } = trpc.doctor.list.useQuery();
 
+  const { data: specialties } = trpc.specialty.list.useQuery();
+
   const createMutation = trpc.appointment.create.useMutation({
-    onSuccess: () => {
-      toast.success("Consulta agendada com sucesso");
+    onSuccess: data => {
+      toast.success(
+        data?.message ?? "Consulta agendada com sucesso"
+      );
       setIsDialogOpen(false);
       refetch();
     },
@@ -46,7 +50,12 @@ export default function Appointments() {
     return a.status === filterStatus;
   }) || [];
 
-  const isAdmin = user?.role === "admin";
+  const isStaff =
+    user?.role === "admin" ||
+    user?.role === "user" ||
+    user?.role === "doctor";
+  const canCancelScheduled =
+    isStaff || user?.role === "patient";
 
   const patientMap = useMemo(
     () =>
@@ -91,9 +100,19 @@ export default function Appointments() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Consultas</h1>
-            <p className="text-gray-600 mt-2">Gerenciar agendamento de consultas</p>
+            <p className="text-gray-600 mt-2">
+              Agende consultas apenas para{" "}
+              <a href="/patients" className="text-blue-600 underline">
+                pacientes
+              </a>{" "}
+              e{" "}
+              <a href="/doctors" className="text-blue-600 underline">
+                médicos
+              </a>{" "}
+              já cadastrados. O paciente recebe um registo de notificação de confirmação.
+            </p>
           </div>
-          {isAdmin && (
+          {isStaff && (
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="flex items-center gap-2">
@@ -105,13 +124,19 @@ export default function Appointments() {
                 <DialogHeader>
                   <DialogTitle>Agendar Nova Consulta</DialogTitle>
                   <DialogDescription>
-                    Preencha as informações da consulta
+                    Escolha um paciente e um médico da lista. Data e hora definem o agendamento; o sistema regista uma notificação para o paciente.
                   </DialogDescription>
                 </DialogHeader>
                 <AppointmentForm
                   patients={patients || []}
                   doctors={doctors || []}
-                  onSubmit={(data) => {
+                  specialties={specialties || []}
+                  lockedDoctorId={
+                    user?.role === "doctor"
+                      ? (user.linkedDoctorId ?? undefined)
+                      : undefined
+                  }
+                  onSubmit={data => {
                     createMutation.mutate(data);
                   }}
                   isLoading={createMutation.isPending}
@@ -190,7 +215,7 @@ export default function Appointments() {
                           </span>
                         </TableCell>
                         <TableCell className="text-right">
-                          {isAdmin && appointment.status === "scheduled" && (
+                          {canCancelScheduled && appointment.status === "scheduled" && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -220,11 +245,15 @@ export default function Appointments() {
 function AppointmentForm({
   patients,
   doctors,
+  specialties,
+  lockedDoctorId,
   onSubmit,
   isLoading,
 }: {
   patients: any[];
   doctors: any[];
+  specialties: any[];
+  lockedDoctorId?: number;
   onSubmit: (data: any) => void;
   isLoading: boolean;
 }) {
@@ -235,6 +264,23 @@ function AppointmentForm({
     appointmentTime: "",
     notes: "",
   });
+
+  useEffect(() => {
+    if (lockedDoctorId != null && lockedDoctorId > 0) {
+      setFormData(f => ({ ...f, doctorId: lockedDoctorId }));
+    }
+  }, [lockedDoctorId]);
+
+  const specialtyMap = useMemo(
+    () =>
+      new Map(
+        (specialties ?? []).map((s: any) => [s.id as number, s.name as string])
+      ),
+    [specialties]
+  );
+
+  const selectedPatient = patients.find(p => p.id === formData.patientId);
+  const selectedDoctor = doctors.find(d => d.id === formData.doctorId);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -247,7 +293,12 @@ function AppointmentForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
-      <Select value={String(formData.patientId)} onValueChange={(val) => setFormData({ ...formData, patientId: parseInt(val) })}>
+      <Select
+        value={String(formData.patientId)}
+        onValueChange={val =>
+          setFormData({ ...formData, patientId: parseInt(val) })
+        }
+      >
         <SelectTrigger>
           <SelectValue placeholder="Selecione o paciente" />
         </SelectTrigger>
@@ -260,7 +311,21 @@ function AppointmentForm({
         </SelectContent>
       </Select>
 
-      <Select value={String(formData.doctorId)} onValueChange={(val) => setFormData({ ...formData, doctorId: parseInt(val) })}>
+      {selectedPatient && (
+        <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">{selectedPatient.name}</p>
+          <p>{selectedPatient.email}</p>
+          <p>{selectedPatient.phone}</p>
+        </div>
+      )}
+
+      <Select
+        value={String(formData.doctorId)}
+        onValueChange={val =>
+          setFormData({ ...formData, doctorId: parseInt(val) })
+        }
+        disabled={lockedDoctorId != null}
+      >
         <SelectTrigger>
           <SelectValue placeholder="Selecione o médico" />
         </SelectTrigger>
@@ -272,6 +337,17 @@ function AppointmentForm({
           ))}
         </SelectContent>
       </Select>
+
+      {selectedDoctor && (
+        <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+          <p className="font-medium text-foreground">{selectedDoctor.name}</p>
+          <p>
+            Especialidade:{" "}
+            {specialtyMap.get(selectedDoctor.specialtyId) ?? "—"}
+          </p>
+          <p>Registro: {selectedDoctor.licenseNumber}</p>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-4">
         <Input

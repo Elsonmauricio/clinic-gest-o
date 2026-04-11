@@ -26,13 +26,17 @@ export const users = mysqlTable("users", {
   name: text("name"),
   email: varchar("email", { length: 320 }).unique(),
   loginMethod: varchar("loginMethod", { length: 64 }),
-  role: mysqlEnum("role", ["user", "admin"]).default("user").notNull(),
+  role: mysqlEnum("role", ["user", "admin", "doctor", "patient"]).default("user").notNull(),
+  linkedDoctorId: int("linkedDoctorId"),
+  linkedPatientId: int("linkedPatientId"),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),
   lastSignedIn: timestamp("lastSignedIn").defaultNow().notNull(),
 }, (table) => ({
   emailIdx: index("email_idx").on(table.email),
   openIdIdx: index("openId_idx").on(table.openId),
+  linkedDoctorIdx: index("users_linkedDoctorId_idx").on(table.linkedDoctorId),
+  linkedPatientIdx: index("users_linkedPatientId_idx").on(table.linkedPatientId),
 }));
 
 export type User = typeof users.$inferSelect;

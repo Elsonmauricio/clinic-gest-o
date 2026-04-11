@@ -1,7 +1,19 @@
 import { COOKIE_NAME } from "@shared/const";
 import { getSessionCookieOptions } from "./_core/cookies";
 import { systemRouter } from "./_core/systemRouter";
-import { publicProcedure, router, protectedProcedure, adminProcedure } from "./_core/trpc";
+import {
+  publicProcedure,
+  router,
+  protectedProcedure,
+  adminProcedure,
+  staffProcedure,
+} from "./_core/trpc";
+import {
+  assertStaff,
+  canAccessPatientData,
+  doctorMatches,
+  isStaff,
+} from "./_core/permissions";
 import { z } from "zod";
 import * as db from "./db";
 import { TRPCError } from "@trpc/server";
@@ -18,7 +30,6 @@ const doctorSchema = z.object({
   email: z.string().email("Email inválido"),
   phone: z.string().min(1, "Telefone é obrigatório"),
   specialtyId: z.number().int().positive("Especialidade é obrigatória"),
-  licenseNumber: z.string().min(1, "Número de registro é obrigatório"),
   bio: z.string().optional(),
 });
 
@@ -152,8 +163,13 @@ const doctorRouter = router({
     .input(doctorSchema)
     .mutation(async ({ input }) => {
       try {
-        await db.createDoctor(input as any);
-        return { success: true, message: "Médico criado com sucesso" };
+        const licenseNumber = await db.getNextDoctorLicenseNumber();
+        await db.createDoctor({ ...input, licenseNumber } as any);
+        return {
+          success: true,
+          message: `Médico criado com sucesso. Número de registro: ${licenseNumber}`,
+          licenseNumber,
+        };
       } catch (error: any) {
         if (error.message.includes("Duplicate entry")) {
           throw new TRPCError({ code: "CONFLICT", message: "Email ou número de registro já existe" });
@@ -207,13 +223,23 @@ const doctorRouter = router({
 // ============= PATIENT ROUTER =============
 
 const patientRouter = router({
-  list: protectedProcedure.query(async () => {
+  list: protectedProcedure.query(async ({ ctx }) => {
+    const u = ctx.user!;
+    if (u.role === "patient") {
+      if (!u.linkedPatientId) return [];
+      const p = await db.getPatientById(u.linkedPatientId);
+      return p ? [p] : [];
+    }
+    assertStaff(u);
     return db.getPatients();
   }),
 
   getById: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      if (!canAccessPatientData(ctx.user, input.id)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
       const patient = await db.getPatientById(input.id);
       if (!patient) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Paciente não encontrado" });
@@ -221,7 +247,7 @@ const patientRouter = router({
       return patient;
     }),
 
-  search: protectedProcedure
+  search: staffProcedure
     .input(z.object({ query: z.string().min(1) }))
     .query(async ({ input }) => {
       return db.searchPatients(input.query);
@@ -257,7 +283,10 @@ const patientRouter = router({
 
   getHistory: protectedProcedure
     .input(z.object({ patientId: z.number().int().positive() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      if (!canAccessPatientData(ctx.user, input.patientId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
       return db.getMedicalRecordsByPatient(input.patientId);
     }),
 });
@@ -265,41 +294,81 @@ const patientRouter = router({
 // ============= APPOINTMENT ROUTER =============
 
 const appointmentRouter = router({
-  list: protectedProcedure.query(async () => {
+  list: protectedProcedure.query(async ({ ctx }) => {
+    const u = ctx.user!;
+    if (u.role === "patient" && u.linkedPatientId) {
+      return db.getAppointmentsByPatient(u.linkedPatientId);
+    }
+    if (u.role === "doctor" && u.linkedDoctorId) {
+      return db.getAppointmentsByDoctor(u.linkedDoctorId);
+    }
+    assertStaff(u);
     return db.getAppointments();
   }),
 
   getById: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const appointment = await db.getAppointmentById(input.id);
       if (!appointment) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Consulta não encontrada" });
+      }
+      const u = ctx.user!;
+      if (u.role === "patient") {
+        if (u.linkedPatientId !== appointment.patientId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+        }
+      } else if (u.role === "doctor") {
+        if (u.linkedDoctorId !== appointment.doctorId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+        }
+      } else if (!isStaff(u)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
       }
       return appointment;
     }),
 
   getByPatient: protectedProcedure
     .input(z.object({ patientId: z.number().int().positive() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      if (!canAccessPatientData(ctx.user, input.patientId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
       return db.getAppointmentsByPatient(input.patientId);
     }),
 
   getByDoctor: protectedProcedure
     .input(z.object({ doctorId: z.number().int().positive() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      if (!doctorMatches(ctx.user, input.doctorId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
       return db.getAppointmentsByDoctor(input.doctorId);
     }),
 
-  getByDateRange: protectedProcedure
+  getByDateRange: staffProcedure
     .input(z.object({ startDate: z.string(), endDate: z.string() }))
-    .query(async ({ input }) => {
-      return db.getAppointmentsByDateRange(input.startDate, input.endDate);
+    .query(async ({ ctx, input }) => {
+      const u = ctx.user!;
+      const rows = await db.getAppointmentsByDateRange(input.startDate, input.endDate);
+      if (u.role === "doctor" && u.linkedDoctorId) {
+        return rows.filter(a => a.doctorId === u.linkedDoctorId);
+      }
+      return rows;
     }),
 
-  create: adminProcedure
+  create: staffProcedure
     .input(appointmentSchema)
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const u = ctx.user!;
+      if (u.role === "doctor") {
+        if (!u.linkedDoctorId || input.doctorId !== u.linkedDoctorId) {
+          throw new TRPCError({
+            code: "FORBIDDEN",
+            message: "Só pode agendar consultas no seu perfil de médico",
+          });
+        }
+      }
       // Validar se paciente existe
       const patient = await db.getPatientById(input.patientId);
       if (!patient) {
@@ -320,19 +389,45 @@ const appointmentRouter = router({
       }
 
       try {
-        await db.createAppointment({
+        const appointmentId = await db.createAppointmentReturningId({
           ...input,
           status: "scheduled",
         } as any);
-        return { success: true, message: "Consulta agendada com sucesso" };
+
+        const timeNorm =
+          input.appointmentTime.length === 5
+            ? `${input.appointmentTime}:00`
+            : input.appointmentTime;
+        const scheduledFor = new Date(`${dateStr}T${timeNorm}`);
+
+        await db.createNotification({
+          appointmentId,
+          patientId: input.patientId,
+          type: "confirmation",
+          status: "pending",
+          scheduledFor,
+        });
+
+        const dateLabel = new Date(dateStr + "T12:00:00").toLocaleDateString("pt-PT");
+        return {
+          success: true,
+          message: `Consulta agendada para ${patient.name} com Dr(a). ${doctor.name} em ${dateLabel} às ${input.appointmentTime}. Foi registada uma notificação para o paciente (confirmação pendente de envio).`,
+          appointmentId,
+        };
       } catch (error: any) {
         throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "Erro ao agendar consulta" });
       }
     }),
 
-  update: adminProcedure
+  update: staffProcedure
     .input(z.object({ id: z.number().int().positive(), data: appointmentUpdateSchema }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      if (ctx.user.role === "doctor") {
+        const appt = await db.getAppointmentById(input.id);
+        if (!appt || appt.doctorId !== ctx.user.linkedDoctorId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+        }
+      }
       await db.updateAppointment(input.id, input.data);
       return { success: true, message: "Consulta atualizada com sucesso" };
     }),
@@ -346,8 +441,34 @@ const appointmentRouter = router({
 
   cancel: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .mutation(async ({ input }) => {
+    .mutation(async ({ ctx, input }) => {
+      const appointment = await db.getAppointmentById(input.id);
+      if (!appointment) {
+        throw new TRPCError({ code: "NOT_FOUND", message: "Consulta não encontrada" });
+      }
+      const u = ctx.user!;
+      if (u.role === "patient") {
+        if (u.linkedPatientId !== appointment.patientId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+        }
+      } else if (u.role === "doctor") {
+        if (u.linkedDoctorId !== appointment.doctorId) {
+          throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+        }
+      } else if (!isStaff(u)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
       await db.updateAppointment(input.id, { status: "cancelled" });
+      try {
+        await db.createNotification({
+          appointmentId: input.id,
+          patientId: appointment.patientId,
+          type: "cancellation",
+          status: "pending",
+        });
+      } catch (e) {
+        console.warn("[Notifications] Falha ao registar cancelamento:", e);
+      }
       return { success: true, message: "Consulta cancelada com sucesso" };
     }),
 });
@@ -357,28 +478,34 @@ const appointmentRouter = router({
 const medicalRecordRouter = router({
   getByPatient: protectedProcedure
     .input(z.object({ patientId: z.number().int().positive() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
+      if (!canAccessPatientData(ctx.user, input.patientId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
       return db.getMedicalRecordsByPatient(input.patientId);
     }),
 
   getById: protectedProcedure
     .input(z.object({ id: z.number().int().positive() }))
-    .query(async ({ input }) => {
+    .query(async ({ ctx, input }) => {
       const record = await db.getMedicalRecordById(input.id);
       if (!record) {
         throw new TRPCError({ code: "NOT_FOUND", message: "Prontuário não encontrado" });
       }
+      if (!canAccessPatientData(ctx.user, record.patientId)) {
+        throw new TRPCError({ code: "FORBIDDEN", message: "Acesso negado" });
+      }
       return record;
     }),
 
-  create: adminProcedure
+  create: staffProcedure
     .input(medicalRecordSchema)
     .mutation(async ({ input }) => {
       await db.createMedicalRecord(input as any);
       return { success: true, message: "Prontuário criado com sucesso" };
     }),
 
-  update: adminProcedure
+  update: staffProcedure
     .input(z.object({ id: z.number().int().positive(), data: medicalRecordSchema.partial() }))
     .mutation(async ({ input }) => {
       const data = input.data as any;
@@ -393,7 +520,31 @@ const medicalRecordRouter = router({
 // ============= STATISTICS ROUTER =============
 
 const statisticsRouter = router({
-  getOverview: protectedProcedure.query(async () => {
+  getOverview: protectedProcedure.query(async ({ ctx }) => {
+    const u = ctx.user!;
+    if (u.role === "patient") {
+      if (!u.linkedPatientId) {
+        return {
+          totalPatients: 0,
+          totalDoctors: 0,
+          totalAppointments: 0,
+          totalSpecialties: 0,
+        };
+      }
+      return db.getStatisticsForPatient(u.linkedPatientId);
+    }
+    if (u.role === "doctor") {
+      if (!u.linkedDoctorId) {
+        return {
+          totalPatients: 0,
+          totalDoctors: 0,
+          totalAppointments: 0,
+          totalSpecialties: 0,
+        };
+      }
+      return db.getStatisticsForDoctor(u.linkedDoctorId);
+    }
+    assertStaff(u);
     return db.getStatistics();
   }),
 });

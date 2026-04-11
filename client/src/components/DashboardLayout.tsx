@@ -42,7 +42,15 @@ const menuItems = [
   { icon: FileText, label: "Especialidades", path: "/specialties" },
   { icon: Calendar, label: "Consultas", path: "/appointments" },
   { icon: FileText, label: "Prontuários", path: "/records" },
-];
+] as const;
+
+function menuPathsForRole(role: string | undefined): Set<string> {
+  const all = new Set(menuItems.map(m => m.path));
+  if (role === "patient") {
+    return new Set(["/", "/appointments", "/records", "/patients", "/doctors"]);
+  }
+  return all;
+}
 
 const SIDEBAR_WIDTH_KEY = "sidebar-width";
 const DEFAULT_WIDTH = 280;
@@ -124,7 +132,9 @@ function DashboardLayoutContent({
   const isCollapsed = state === "collapsed";
   const [isResizing, setIsResizing] = useState(false);
   const sidebarRef = useRef<HTMLDivElement>(null);
-  const activeMenuItem = menuItems.find(item => item.path === location);
+  const visiblePaths = menuPathsForRole(user?.role);
+  const sidebarItems = menuItems.filter(item => visiblePaths.has(item.path));
+  const activeMenuItem = sidebarItems.find(item => item.path === location);
   const isMobile = useIsMobile();
 
   useEffect(() => {
@@ -192,7 +202,7 @@ function DashboardLayoutContent({
 
           <SidebarContent className="gap-0">
             <SidebarMenu className="px-2 py-1">
-              {menuItems.map(item => {
+              {sidebarItems.map(item => {
                 const isActive = location === item.path;
                 return (
                   <SidebarMenuItem key={item.path}>

@@ -45,7 +45,8 @@ export async function getDb() {
     if (!_pool) {
       _pool = mysql.createPool(connectionString);
     }
-    _db = drizzle(_pool);
+    // mysql2/promise Pool typings diverge from drizzle-orm's expected Pool; runtime is correct.
+    _db = drizzle(_pool as never);
   } catch (error) {
     console.warn("[Database] Failed to connect:", error);
     _db = null;
@@ -94,6 +95,13 @@ export async function upsertUser(user: InsertUser): Promise<void> {
     } else if (user.openId === ENV.ownerOpenId) {
       values.role = 'admin';
       updateSet.role = 'admin';
+    }
+
+    const linkFields = ["linkedDoctorId", "linkedPatientId"] as const;
+    for (const field of linkFields) {
+      if (user[field] === undefined) continue;
+      values[field] = user[field];
+      updateSet[field] = user[field];
     }
 
     if (!values.lastSignedIn) {
@@ -178,6 +186,17 @@ export async function getDoctorsBySpecialty(specialtyId: number) {
   const db = await getDb();
   if (!db) return [];
   return db.select().from(doctors).where(eq(doctors.specialtyId, specialtyId)).orderBy(asc(doctors.name));
+}
+
+/** Próximo número de registro no formato CRM-000001 (alinhado ao próximo id da tabela). */
+export async function getNextDoctorLicenseNumber(): Promise<string> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const [row] = await db
+    .select({ next: sql<number>`COALESCE(MAX(${doctors.id}), 0) + 1` })
+    .from(doctors);
+  const n = Number(row?.next ?? 1);
+  return `CRM-${String(n).padStart(6, "0")}`;
 }
 
 export async function createDoctor(data: InsertDoctor) {
@@ -328,6 +347,28 @@ export async function createAppointment(data: InsertAppointment) {
   return db.insert(appointments).values(data);
 }
 
+/** Insere consulta e devolve o id (para notificações e integrações). */
+export async function createAppointmentReturningId(
+  data: InsertAppointment
+): Promise<number> {
+  const db = await getDb();
+  if (!db) throw new Error("Database not available");
+  const result = await db.insert(appointments).values(data);
+  const header = Array.isArray(result) ? result[0] : result;
+  const rawId = (header as { insertId?: number | bigint }).insertId;
+  if (rawId !== undefined && rawId !== null) {
+    const n = typeof rawId === "bigint" ? Number(rawId) : rawId;
+    if (n > 0) return n;
+  }
+  const rows = await db
+    .select({ id: appointments.id })
+    .from(appointments)
+    .orderBy(desc(appointments.id))
+    .limit(1);
+  if (!rows[0]) throw new Error("Não foi possível obter o id da consulta criada");
+  return rows[0].id;
+}
+
 export async function updateAppointment(id: number, data: Partial<InsertAppointment>) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
@@ -405,5 +446,48 @@ export async function getStatistics() {
     totalDoctors: doctorCount?.count || 0,
     totalAppointments: appointmentCount?.count || 0,
     totalSpecialties: specialtyCount?.count || 0,
+  };
+}
+
+export async function getStatisticsForPatient(patientId: number) {
+  const db = await getDb();
+  if (!db) {
+    return { totalPatients: 0, totalDoctors: 0, totalAppointments: 0, totalSpecialties: 0 };
+  }
+
+  const [appointmentCount] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(appointments)
+    .where(eq(appointments.patientId, patientId));
+
+  return {
+    totalPatients: 1,
+    totalDoctors: 0,
+    totalAppointments: Number(appointmentCount?.count ?? 0),
+    totalSpecialties: 0,
+  };
+}
+
+export async function getStatisticsForDoctor(doctorId: number) {
+  const db = await getDb();
+  if (!db) {
+    return { totalPatients: 0, totalDoctors: 0, totalAppointments: 0, totalSpecialties: 0 };
+  }
+
+  const [appointmentCount] = await db
+    .select({ count: sql<number>`COUNT(*)` })
+    .from(appointments)
+    .where(eq(appointments.doctorId, doctorId));
+
+  const [patientRow] = await db
+    .select({ count: sql<number>`COUNT(DISTINCT ${appointments.patientId})` })
+    .from(appointments)
+    .where(eq(appointments.doctorId, doctorId));
+
+  return {
+    totalPatients: Number(patientRow?.count ?? 0),
+    totalDoctors: 1,
+    totalAppointments: Number(appointmentCount?.count ?? 0),
+    totalSpecialties: 1,
   };
 }

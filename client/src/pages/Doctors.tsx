@@ -21,8 +21,11 @@ export default function Doctors() {
   const { data: specialties } = trpc.specialty.list.useQuery();
 
   const createMutation = trpc.doctor.create.useMutation({
-    onSuccess: () => {
-      toast.success("Médico criado com sucesso");
+    onSuccess: data => {
+      toast.success(
+        data?.message ??
+          "Médico criado com sucesso"
+      );
       setIsDialogOpen(false);
       setEditingId(null);
       refetch();
@@ -110,7 +113,7 @@ export default function Doctors() {
                   <DialogDescription>
                     {editingDoctor
                       ? "Atualize as informações do médico"
-                      : "Preencha as informações do médico"}
+                      : "Preencha os dados. O número de registro profissional (CRM) é gerado automaticamente no formato CRM-000001."}
                   </DialogDescription>
                 </DialogHeader>
                 <DoctorForm
@@ -122,7 +125,6 @@ export default function Doctors() {
                           email: editingDoctor.email,
                           phone: editingDoctor.phone,
                           specialtyId: editingDoctor.specialtyId,
-                          licenseNumber: editingDoctor.licenseNumber,
                           bio: editingDoctor.bio ?? "",
                         }
                       : undefined
@@ -255,7 +257,7 @@ type DoctorFormProps = {
     email: string;
     phone: string;
     specialtyId: number;
-    licenseNumber: string;
+    licenseNumber?: string;
     bio?: string;
   };
   onSubmit: (data: any) => void;
@@ -275,7 +277,6 @@ function DoctorForm({
     email: "",
     phone: "",
     specialtyId: 0,
-    licenseNumber: "",
     bio: "",
   });
 
@@ -286,7 +287,6 @@ function DoctorForm({
         email: initialData.email ?? "",
         phone: initialData.phone ?? "",
         specialtyId: initialData.specialtyId ?? 0,
-        licenseNumber: initialData.licenseNumber ?? "",
         bio: initialData.bio ?? "",
       });
     } else {
@@ -295,7 +295,6 @@ function DoctorForm({
         email: "",
         phone: "",
         specialtyId: 0,
-        licenseNumber: "",
         bio: "",
       });
     }
@@ -349,14 +348,7 @@ function DoctorForm({
         </Select>
       </div>
 
-      <div className="grid grid-cols-2 gap-4">
-        <Input
-          placeholder="Número de registro"
-          value={formData.licenseNumber}
-          onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
-          required
-        />
-      </div>
+
 
       <Input
         placeholder="Biografia"

@@ -269,6 +269,8 @@ class SDKServer {
           email: "dev@local",
           loginMethod: "dev",
           role: ENV.devAuthRole,
+          linkedDoctorId: ENV.devLinkedDoctorId ?? null,
+          linkedPatientId: ENV.devLinkedPatientId ?? null,
           lastSignedIn: now,
         });
         const user = await db.getUserByOpenId(devOpenId);
@@ -285,6 +287,8 @@ class SDKServer {
         email: "dev@local",
         loginMethod: "dev",
         role: ENV.devAuthRole,
+        linkedDoctorId: ENV.devLinkedDoctorId ?? null,
+        linkedPatientId: ENV.devLinkedPatientId ?? null,
         createdAt: now,
         updatedAt: now,
         lastSignedIn: now,
