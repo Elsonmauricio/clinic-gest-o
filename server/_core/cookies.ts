@@ -3,16 +3,16 @@ import type { CookieOptions, Request } from "express";
 const LOCAL_HOSTS = new Set(["localhost", "127.0.0.1", "::1"]);
 
 function isSecureRequest(req: Request) {
-  if (req.protocol === "https") return true;
+  if ((req as any).protocol === "https") return true;
 
-  const forwardedProto = req.headers["x-forwarded-proto"];
+  const forwardedProto = (req as any).headers["x-forwarded-proto"];
   if (!forwardedProto) return false;
 
   const protoList = Array.isArray(forwardedProto)
     ? forwardedProto
     : forwardedProto.split(",");
 
-  return protoList.some(proto => proto.trim().toLowerCase() === "https");
+  return protoList.some((proto: string) => proto.trim().toLowerCase() === "https");
 }
 
 export function getSessionCookieOptions(
@@ -28,6 +28,7 @@ export function getSessionCookieOptions(
   // Lax + secure:false faz a sessão funcionar no mesmo site (ex.: localhost:3000).
   if (local || !isSecureRequest(req)) {
     return {
+      domain: undefined,
       httpOnly: true,
       path: "/",
       sameSite: "lax",
@@ -36,6 +37,7 @@ export function getSessionCookieOptions(
   }
 
   return {
+    domain: undefined,
     httpOnly: true,
     path: "/",
     sameSite: "lax",
