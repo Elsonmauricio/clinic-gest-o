@@ -13,7 +13,7 @@ function safeRedirectPath(raw: unknown): string {
 }
 
 function getQueryParam(req: Request, key: string): string | undefined {
-  const value = req.query[key];
+  const value = (req as any).query[key];
   return typeof value === "string" ? value : undefined;
 }
 
@@ -36,7 +36,7 @@ export function registerDevAuthRoutes(app: Express) {
     return;
   }
 
-  app.get("/api/dev/login", async (req: Request, res: Response) => {
+  (app as any).get("/api/dev/login", async (req: Request, res: Response) => {
     const redirect = safeRedirectPath(getQueryParam(req, "redirect"));
     const role = parseRoleParam(getQueryParam(req, "role"));
 
@@ -46,12 +46,12 @@ export function registerDevAuthRoutes(app: Express) {
     if (role === "doctor") {
       const id = parseInt(getQueryParam(req, "doctorId") ?? "", 10);
       if (!Number.isFinite(id)) {
-        res.status(400).send("Parâmetro doctorId é obrigatório e deve ser numérico para role=doctor");
+        (res as any).status(400).send("Parâmetro doctorId é obrigatório e deve ser numérico para role=doctor");
         return;
       }
       const doc = await db.getDoctorById(id);
       if (!doc) {
-        res.status(400).send("doctorId não corresponde a um médico existente");
+        (res as any).status(400).send("doctorId não corresponde a um médico existente");
         return;
       }
       linkedDoctorId = id;
@@ -60,12 +60,12 @@ export function registerDevAuthRoutes(app: Express) {
     if (role === "patient") {
       const id = parseInt(getQueryParam(req, "patientId") ?? "", 10);
       if (!Number.isFinite(id)) {
-        res.status(400).send("Parâmetro patientId é obrigatório e deve ser numérico para role=patient");
+        (res as any).status(400).send("Parâmetro patientId é obrigatório e deve ser numérico para role=patient");
         return;
       }
       const pat = await db.getPatientById(id);
       if (!pat) {
-        res.status(400).send("patientId não corresponde a um paciente existente");
+        (res as any).status(400).send("patientId não corresponde a um paciente existente");
         return;
       }
       linkedPatientId = id;
@@ -109,22 +109,22 @@ export function registerDevAuthRoutes(app: Express) {
       });
 
       const cookieOptions = getSessionCookieOptions(req);
-      res.cookie(COOKIE_NAME, sessionToken, {
+      (res as any).cookie(COOKIE_NAME, sessionToken, {
         ...cookieOptions,
         maxAge: ONE_YEAR_MS,
       });
 
-      res.redirect(302, redirect);
+      (res as any).redirect(302, redirect);
     } catch (error) {
       console.error("[DevAuth] Login failed", error);
-      res.status(500).send("Dev login failed");
+      (res as any).status(500).send("Dev login failed");
     }
   });
 
-  app.get("/api/dev/logout", (req: Request, res: Response) => {
+  (app as any).get("/api/dev/logout", (req: Request, res: Response) => {
     const redirect = safeRedirectPath(getQueryParam(req, "redirect"));
     const cookieOptions = getSessionCookieOptions(req);
-    res.clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
-    res.redirect(302, redirect);
+    (res as any).clearCookie(COOKIE_NAME, { ...cookieOptions, maxAge: -1 });
+    (res as any).redirect(302, redirect);
   });
 }
