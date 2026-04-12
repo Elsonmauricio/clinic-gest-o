@@ -10,7 +10,7 @@ import { Loader2 } from "lucide-react";
 export default function Home() {
   const { user, isAuthenticated, loading } = useAuth();
   const { data: stats, isLoading } = trpc.statistics.getOverview.useQuery(undefined, {
-    enabled: isAuthenticated,
+    enabled: isAuthenticated && (user?.role === "admin" || user?.role === "user"),
   });
 
   if (loading) {
@@ -94,7 +94,8 @@ export default function Home() {
           <p className="text-gray-600 mt-2">Bem-vindo ao Sistema de Gestão Clínica</p>
         </div>
 
-        {/* Statistics Cards */}
+        {/* Statistics Cards - Visíveis apenas para administração/receção */}
+        {(user?.role === "admin" || user?.role === "user") && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card className="hover:shadow-lg transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
@@ -164,6 +165,7 @@ export default function Home() {
             </CardContent>
           </Card>
         </div>
+        )}
 
         {/* Quick Actions */}
         <Card>
@@ -173,30 +175,53 @@ export default function Home() {
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Pacientes: Admin, Staff e Médicos */}
+              {(user?.role === "admin" || user?.role === "user" || user?.role === "doctor") && (
               <Button variant="outline" className="h-auto flex-col py-4" asChild>
                 <a href="/patients">
                   <Users className="h-6 w-6 mb-2 text-blue-600" />
-                  <span>Gerenciar Pacientes</span>
+                  <span>{user?.role === "doctor" ? "Meus Pacientes" : "Gerenciar Pacientes"}</span>
                 </a>
               </Button>
+              )}
+
+              {/* Médicos: Apenas Admin */}
+              {user?.role === "admin" && (
               <Button variant="outline" className="h-auto flex-col py-4" asChild>
                 <a href="/doctors">
                   <Stethoscope className="h-6 w-6 mb-2 text-green-600" />
                   <span>Gerenciar Médicos</span>
                 </a>
               </Button>
+              )}
+
+              {/* Consultas: Todos (com textos diferentes) */}
               <Button variant="outline" className="h-auto flex-col py-4" asChild>
                 <a href="/appointments">
                   <Calendar className="h-6 w-6 mb-2 text-purple-600" />
-                  <span>Agendar Consulta</span>
+                  <span>{user?.role === "patient" ? "Minhas Consultas" : "Agendar Consulta"}</span>
                 </a>
               </Button>
+
+              {/* Especialidades: Admin e Staff */}
+              {(user?.role === "admin" || user?.role === "user") && (
               <Button variant="outline" className="h-auto flex-col py-4" asChild>
                 <a href="/specialties">
                   <FileText className="h-6 w-6 mb-2 text-orange-600" />
                   <span>Especialidades</span>
                 </a>
               </Button>
+              )}
+
+              {/* Prontuários/Registos: Médicos e Pacientes */}
+              {(user?.role === "doctor" || user?.role === "patient") && (
+                <Button variant="outline" className="h-auto flex-col py-4" asChild>
+                  <a href="/medical-records">
+                    <FileText className="h-6 w-6 mb-2 text-indigo-600" />
+                    <span>{user?.role === "doctor" ? "Registos Clínicos" : "Meu Prontuário"}</span>
+                  </a>
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
