@@ -9,7 +9,7 @@
   "routes": [
     { "src": "/api/(.*)", "dest": "server/_core/index.ts" },
     { "src": "/trpc/(.*)", "dest": "server/_core/index.ts" },
-    { "src": "/(.*)", "dest": "client/dist/$1", "check": true },
-    { "src": "/(.*)", "dest": "client/dist/index.html" }
+    { "src": "/(.*)", "dest": "dist/public/$1", "check": true },
+    { "src": "/(.*)", "dest": "dist/public/index.html" }
   ]
 }
