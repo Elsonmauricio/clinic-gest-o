@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { appRouter } from "./routers";
+import { appRouter } from "./routers/routers";
 import type { TrpcContext } from "./_core/context";
 
 // Mock context for admin user

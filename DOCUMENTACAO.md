@@ -231,7 +231,6 @@ Para executar os testes:
 pnpm test
 ```
 
----
 
 ## Deployment
 
@@ -287,17 +286,21 @@ Para mais informações ou suporte, entre em contacto com a equipa de desenvolvi
 
 Como rodar no Windows (passo a passo)
 Faça tudo no PowerShell, na pasta C:\Users\maels\Downloads\clinica-gestao (raiz do projeto), não dentro de client.
+
 1. Instalar o pnpm (uma vez só)
 npm install -g pnpm
 Se der certo, confira:
 pnpm -v
+
 2. Instalar as dependências do projeto
 Na pasta do projeto:
 cd C:\Users\maels\Downloads\clinica-gestaopnpm install
 > Isso vai usar o pnpm-lock.yaml e evitar aquele erro ERESOLVE do npm install.
+
 3. Rodar o servidor em modo desenvolvimento (jeito compatível com Windows)
-No Windows, em vez do script "dev": "NODE_ENV=development tsx watch server/_core/index.ts", faça assim:
-cd C:\Users\maels\Downloads\clinica-gestao$env:NODE_ENV = "development"pnpm exec tsx watch server/_core/index.ts
+
+$env:NODE_ENV = "development"; pnpm exec tsx watch server/_core/index.ts
+
 Depois de subir, o servidor deve estar em algo como:
 http://localhost:3000/
 Esse único processo já sobe backend + frontend (o Express integra com o Vite).

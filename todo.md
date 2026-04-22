@@ -70,36 +70,36 @@
 ## Fase 4: Frontend - Gestão de Especialidades
 - [x] Criar página de listagem de especialidades
 - [x] Implementar formulário de criação
-- [ ] Implementar formulário de edição
+- [x] Implementar formulário de edição
 - [x] Implementar exclusão com confirmação
 
 ## Fase 4: Frontend - Gestão de Médicos
 - [x] Criar página de listagem de médicos
 - [x] Implementar formulário de criação com seleção de especialidade
-- [ ] Implementar formulário de edição
-- [ ] Implementar gestão de horários disponíveis
+- [x] Implementar formulário de edição
+- [x] Implementar gestão de horários disponíveis
 - [x] Implementar exclusão com confirmação
 
 ## Fase 4: Frontend - Gestão de Pacientes
 - [x] Criar página de listagem de pacientes
 - [x] Implementar formulário de criação com informações pessoais
-- [ ] Implementar formulário de edição
-- [ ] Implementar visualização de histórico de consultas
+- [x] Implementar formulário de edição
+- [x] Implementar visualização de histórico de consultas
 - [x] Implementar exclusão com confirmação
 
 ## Fase 4: Frontend - Agendamento de Consultas
 - [x] Criar página de listagem de consultas
 - [x] Implementar formulário de agendamento com validação
-- [ ] Implementar calendário de disponibilidade
+- [x] Implementar calendário de disponibilidade
 - [x] Implementar filtros (data, médico, paciente, especialidade)
-- [ ] Implementar visualização de detalhes de consulta
+- [x] Implementar visualização de detalhes de consulta
 - [x] Implementar cancelamento de consulta
-- [ ] Implementar edição de consulta
+- [x] Implementar edição de consulta
 
 ## Fase 4: Frontend - Prontuários Médicos
-- [ ] Criar página de visualização de prontuários
-- [ ] Implementar adição de notas ao prontuário
-- [ ] Implementar histórico de consultas com detalhes
+- [x] Criar página de visualização de prontuários
+- [x] Implementar adição de notas ao prontuário
+- [x] Implementar histórico de consultas com detalhes
 
 ## Fase 5: Integração e Testes
 - [ ] Testar fluxo de autenticação completo

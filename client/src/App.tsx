@@ -9,11 +9,11 @@ import { lazy, Suspense } from "react";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/_core/hooks/useAuth";
 
-const Patients = lazy(() => import("./pages/Patients"));
+const Patients = lazy(() => import("./pages/Patients"))
 const Doctors = lazy(() => import("./pages/Doctors"));
 const Specialties = lazy(() => import("./pages/Specialties"));
 const Appointments = lazy(() => import("./pages/Appointments"));
-const MedicalRecords = lazy(() => import("./pages/MedicalRecords"));
+const MedicalRecordsPage = lazy(() => import("./pages/MedicalRecords").then(module => ({ default: module.MedicalRecordsPage })));
 
 function LoadingFallback() {
   return (
@@ -33,7 +33,7 @@ function Router() {
         <Route path={"/doctors"} component={Doctors} />
         <Route path={"/specialties"} component={Specialties} />
         <Route path={"/appointments"} component={Appointments} />
-        <Route path={"/records"} component={MedicalRecords} />
+        <Route path={"/records"} component={MedicalRecordsPage} />
         <Route path={"/404"} component={NotFound} />
         {/* Final fallback route */}
         <Route component={NotFound} />
@@ -41,11 +41,6 @@ function Router() {
     </Suspense>
   );
 }
-
-// NOTE: About Theme
-// - First choose a default theme according to your design style (dark or light bg), than change color palette in index.css
-//   to keep consistent foreground/background color across components
-// - If you want to make theme switchable, pass `switchable` ThemeProvider and use `useTheme` hook
 
 function App() {
   return (

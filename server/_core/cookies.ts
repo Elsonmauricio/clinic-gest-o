@@ -17,8 +17,8 @@ function isSecureRequest(req: Request) {
 
 export function getSessionCookieOptions(
   req: Request
-): Pick<CookieOptions, "domain" | "httpOnly" | "path" | "sameSite" | "secure"> {
-  const host = (req.hostname || "").toLowerCase();
+): any {
+  const host = ((req as any).hostname || "").toLowerCase();
   const local =
     LOCAL_HOSTS.has(host) ||
     host === "" ||

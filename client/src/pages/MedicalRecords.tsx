@@ -1,135 +1,114 @@
 import { useState } from "react";
-import DashboardLayout from "@/components/DashboardLayout";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { trpc } from "@/lib/trpc";
-import { Loader2 } from "lucide-react";
+import { trpc } from "../lib/trpc";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
+import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import { toast } from "sonner";
+import { ClipboardList, Plus } from "lucide-react";
 
-export default function MedicalRecords() {
-  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+const recordSchema = z.object({
+  symptoms: z.string().min(1, "Descreva os sintomas"),
+  diagnosis: z.string().min(1, "Informe o diagnóstico"),
+  treatment: z.string(),
+  prescription: z.string(),
+});
 
-  const { data: patients, isLoading: isLoadingPatients } =
-    trpc.patient.list.useQuery();
+export function MedicalRecordsPage({ patientId }: { patientId: number }) {
+  const [isAdding, setIsAdding] = useState(false);
+  const utils = trpc.useUtils();
 
-  const {
-    data: records,
-    isLoading: isLoadingRecords,
-  } = trpc.medicalRecord.getByPatient.useQuery(
-    { patientId: selectedPatientId ?? 0 },
-    { enabled: selectedPatientId !== null }
-  );
+  const { data: records, isLoading } = trpc.medicalRecords.getByPatient.useQuery({ patientId });
+  const { data: patient } = trpc.patients.getById.useQuery({ id: patientId });
 
-  const selectedPatient = patients?.find(p => p.id === selectedPatientId) ?? null;
+  const createRecord = trpc.medicalRecords.create.useMutation({
+    onSuccess: () => {
+      toast.success("Prontuário atualizado com sucesso!");
+      setIsAdding(false);
+      utils.medicalRecords.getByPatient.invalidate();
+    },
+  });
+
+  const form = useForm<z.infer<typeof recordSchema>>({
+    resolver: zodResolver(recordSchema),
+  });
+
+  if (isLoading) return <div>Carregando prontuário...</div>;
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex flex-col gap-2">
-          <h1 className="text-3xl font-bold text-gray-900">Prontuários</h1>
-          <p className="text-gray-600">
-            Visualize o histórico de prontuários por paciente.
-          </p>
-        </div>
+    <div className="p-6 space-y-6">
+      <div className="flex justify-between items-center">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <ClipboardList className="text-primary" />
+          Prontuário: {patient?.name}
+        </h1>
+        <Button onClick={() => setIsAdding(!isAdding)}>
+          {isAdding ? "Cancelar" : <><Plus className="mr-2 h-4 w-4" /> Nova Evolução</>}
+        </Button>
+      </div>
 
-        <Card>
+      {isAdding && (
+        <Card className="border-primary/20 shadow-lg animate-in fade-in slide-in-from-top-4">
           <CardHeader>
-            <CardTitle>Selecionar Paciente</CardTitle>
-            <CardDescription>
-              Escolha um paciente para ver o histórico de prontuários.
-            </CardDescription>
+            <CardTitle>Registrar Nova Evolução</CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoadingPatients ? (
-              <div className="flex items-center justify-center py-4">
-                <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+            <form onSubmit={form.handleSubmit((data) => createRecord.mutate({ ...data, patientId }))} className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Sintomas</label>
+                  <Textarea {...form.register("symptoms")} placeholder="O que o paciente relata?" />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-sm font-medium">Diagnóstico</label>
+                  <Textarea {...form.register("diagnosis")} placeholder="Conclusão médica" />
+                </div>
               </div>
-            ) : !patients || patients.length === 0 ? (
-              <p className="text-gray-500">Nenhum paciente encontrado.</p>
-            ) : (
-              <Select
-                value={selectedPatientId ? String(selectedPatientId) : ""}
-                onValueChange={val => setSelectedPatientId(parseInt(val))}
-              >
-                <SelectTrigger className="w-full md:w-80">
-                  <SelectValue placeholder="Selecione um paciente" />
-                </SelectTrigger>
-                <SelectContent>
-                  {patients.map(patient => (
-                    <SelectItem key={patient.id} value={String(patient.id)}>
-                      {patient.name} — {patient.cpf}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            )}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Prescrição/Medicamentos</label>
+                <Input {...form.register("prescription")} placeholder="Ex: Amoxicilina 500mg..." />
+              </div>
+              <Button type="submit" disabled={createRecord.isPending} className="w-full">
+                Salvar no Histórico
+              </Button>
+            </form>
           </CardContent>
         </Card>
+      )}
 
-        {selectedPatient && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Histórico de Prontuários</CardTitle>
-              <CardDescription>
-                Paciente: <span className="font-semibold">{selectedPatient.name}</span>
-              </CardDescription>
+      <div className="space-y-4">
+        {records?.map((record) => (
+          <Card key={record.id}>
+            <CardHeader className="bg-muted/50 py-3">
+              <div className="text-sm text-muted-foreground">
+                {new Date(record.createdAt).toLocaleDateString("pt-BR")} às {new Date(record.createdAt).toLocaleTimeString()}
+              </div>
             </CardHeader>
-            <CardContent>
-              {isLoadingRecords ? (
-                <div className="flex items-center justify-center py-8">
-                  <Loader2 className="h-8 w-8 animate-spin text-gray-400" />
-                </div>
-              ) : !records || records.length === 0 ? (
-                <p className="text-gray-500">
-                  Nenhum prontuário encontrado para este paciente.
-                </p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Data</TableHead>
-                        <TableHead>Sintomas</TableHead>
-                        <TableHead>Diagnóstico</TableHead>
-                        <TableHead>Tratamento</TableHead>
-                        <TableHead>Próxima Consulta</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {records.map(record => (
-                        <TableRow key={record.id}>
-                          <TableCell>
-                            {new Date(record.recordDate).toLocaleDateString(
-                              "pt-PT"
-                            )}
-                          </TableCell>
-                          <TableCell>{record.symptoms || "-"}</TableCell>
-                          <TableCell>{record.diagnosis || "-"}</TableCell>
-                          <TableCell>{record.treatment || "-"}</TableCell>
-                          <TableCell>
-                            {record.nextAppointmentDate
-                              ? new Date(
-                                  record.nextAppointmentDate as unknown as string
-                                ).toLocaleDateString("pt-PT")
-                              : "-"}
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
+            <CardContent className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-1">Sintomas</h4>
+                <p className="text-sm">{record.symptoms}</p>
+              </div>
+              <div>
+                <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-1">Diagnóstico</h4>
+                <p className="text-sm font-medium">{record.diagnosis}</p>
+              </div>
+              {record.prescription && (
+                <div className="md:col-span-2 border-t pt-2">
+                  <h4 className="font-semibold text-sm uppercase tracking-wider text-muted-foreground mb-1">Prescrição</h4>
+                  <p className="text-sm italic">{record.prescription}</p>
                 </div>
               )}
             </CardContent>
           </Card>
+        ))}
+        {records?.length === 0 && !isAdding && (
+          <div className="text-center py-12 text-muted-foreground">Nenhum registro encontrado para este paciente.</div>
         )}
       </div>
-    </DashboardLayout>
+    </div>
   );
 }
-
