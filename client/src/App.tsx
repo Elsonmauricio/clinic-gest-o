@@ -1,13 +1,12 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import NotFound from "@/pages/NotFound";
 import { Route, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import Home from "./pages/Home";
 import { lazy, Suspense } from "react";
 import { Loader2 } from "lucide-react";
-import { useAuth } from "@/_core/hooks/useAuth";
+import { trpc } from "./lib/trpc";
 
 const Patients = lazy(() => import("./pages/Patients"))
 const Doctors = lazy(() => import("./pages/Doctors"));
@@ -24,19 +23,23 @@ function LoadingFallback() {
 }
 
 function Router() {
-  // make sure to consider if you need authentication for certain routes
+  const { data: auth, isLoading } = trpc.auth.me.useQuery();
+
+  if (isLoading) return <LoadingFallback />;
+
   return (
     <Suspense fallback={<LoadingFallback />}>
       <Switch>
         <Route path={"\\"} component={Home} />
         <Route path={"/patients"} component={Patients} />
-        <Route path={"/doctors"} component={Doctors} />
+        {/* Exemplo de rota protegida: apenas Admin vê médicos */}
+        {auth?.user?.role === 'admin' && <Route path={"/doctors"} component={Doctors} />}
         <Route path={"/specialties"} component={Specialties} />
         <Route path={"/appointments"} component={Appointments} />
-        <Route path={"/records"} component={MedicalRecordsPage} />
-        <Route path={"/404"} component={NotFound} />
-        {/* Final fallback route */}
-        <Route component={NotFound} />
+        <Route path="/records/:patientId">
+          {(params) => <MedicalRecordsPage patientId={Number(params.patientId)} />}
+        </Route>
+       
       </Switch>
     </Suspense>
   );

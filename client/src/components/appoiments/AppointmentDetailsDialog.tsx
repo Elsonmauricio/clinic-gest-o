@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { trpc } from "../../utils/trpc";
+import { trpc } from "../../lib/trpc";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/button";
 import { Badge } from "../ui/badge";
@@ -18,12 +18,12 @@ export function AppointmentDetailsDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const utils = trpc.useUtils();
-  const { data: appt, isLoading } = trpc.appointments.getById.useQuery({ id: appointmentId });
+  const { data: appt, isLoading } = trpc.appointment.getById.useQuery({ id: appointmentId });
 
-  const updateStatus = trpc.appointments.updateStatus.useMutation({
+  const updateStatus = trpc.appointment.updateStatus.useMutation({
     onSuccess: () => {
       toast.success("Status atualizado!");
-      utils.appointments.list.invalidate();
+      utils.appointment.list.invalidate();
     }
   });
 

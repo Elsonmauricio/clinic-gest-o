@@ -89,6 +89,8 @@ export async function upsertUser(user: InsertUser): Promise<void> {
       values.lastSignedIn = user.lastSignedIn;
       updateSet.lastSignedIn = user.lastSignedIn;
     }
+    updateSet.updatedAt = new Date(); // Garante que sabemos quando o perfil foi atualizado
+
     if (user.role !== undefined) {
       values.role = user.role;
       updateSet.role = user.role;
@@ -333,8 +335,7 @@ export async function checkAppointmentConflict(doctorId: number, date: string, t
   const result = await db.select().from(appointments).where(
     and(
       eq(appointments.doctorId, doctorId),
-      sql`DATE(${appointments.appointmentDate}) = ${date}`,
-      eq(appointments.appointmentTime, time),
+      eq(appointments.appointmentDate, sql`STR_TO_DATE(${date + ' ' + time}, '%Y-%m-%d %H:%i')`),
       sql`${appointments.status} != 'cancelled'`
     )
   ).limit(1);
@@ -388,7 +389,7 @@ export async function getMedicalRecordsByPatient(patientId: number) {
   if (!db) return [];
   return db.select().from(medicalRecords)
     .where(eq(medicalRecords.patientId, patientId))
-    .orderBy(desc(medicalRecords.recordDate));
+    .orderBy(desc(medicalRecords.createdAt));
 }
 
 export async function getMedicalRecordById(id: number) {

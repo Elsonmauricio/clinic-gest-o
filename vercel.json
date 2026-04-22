@@ -2,14 +2,17 @@
   "version": 2,
   "builds": [
     {
-      "src": "server/_core/index.ts",
+      "src": "package.json",
+      "use": "@vercel/static-build",
+      "config": { "outputDirectory": "dist/public" }
+    },
+    {
+      "src": "api/**/*.ts",
       "use": "@vercel/node"
     }
   ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "server/_core/index.ts" },
-    { "src": "/trpc/(.*)", "dest": "server/_core/index.ts" },
-    { "src": "/(.*)", "dest": "dist/public/$1", "check": true },
-    { "src": "/(.*)", "dest": "dist/public/index.html" }
+    { "src": "/api/(.*)", "dest": "/api/$1" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }

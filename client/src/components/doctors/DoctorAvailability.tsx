@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { trpc } from "../../utils/trpc";
+import { useState, useEffect } from "react";
+import { trpc } from "../../lib/trpc";
 import { Button } from "../ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Checkbox } from "../ui/checkbox";
@@ -18,15 +18,21 @@ const DAYS = [
 
 export function DoctorAvailability({ doctorId }: { doctorId: number }) {
   const utils = trpc.useUtils();
-  const { data: doctor, isLoading } = trpc.doctors.getById.useQuery({ id: doctorId });
+  const { data: doctor, isLoading } = trpc.doctor.getById.useQuery({ id: doctorId });
   
   // Estado local para gerenciar o formulário de horários
   const [schedule, setSchedule] = useState<any>(doctor?.availability || {});
 
-  const updateAvailability = trpc.doctors.updateAvailability.useMutation({
+  useEffect(() => {
+    if (doctor?.availability) {
+      setSchedule(doctor.availability);
+    }
+  }, [doctor]);
+
+  const updateAvailability = trpc.doctor.updateAvailability.useMutation({
     onSuccess: () => {
       toast.success("Horários de atendimento atualizados!");
-      utils.doctors.getById.invalidate({ id: doctorId });
+      utils.doctor.getById.invalidate({ id: doctorId });
     },
   });
 

@@ -21,7 +21,8 @@ export const patientRouter = router({
       email: z.string().email(),
       phone: z.string(),
       cpf: z.string(),
-      dateOfBirth: z.string(),
+      // A propriedade dateOfBirth estava duplicada. Mantemos apenas a versão com transform.
+      dateOfBirth: z.string().transform((str) => new Date(str)), 
       medicalHistory: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
@@ -35,12 +36,13 @@ export const patientRouter = router({
       email: z.string().email(),
       phone: z.string(),
       cpf: z.string(),
-      dateOfBirth: z.string(),
+      // A propriedade dateOfBirth estava duplicada. Mantemos apenas a versão com transform.
+      dateOfBirth: z.string().transform((str) => new Date(str)), 
       medicalHistory: z.string().optional(),
     }))
     .mutation(async ({ ctx, input }) => {
-      const { id, ...data } = input;
-      return await ctx.db.update(patients).set(data).where(eq(patients.id, id));
+      const { id, dateOfBirth, ...data } = input;
+      return await ctx.db.update(patients).set({ ...data, dateOfBirth }).where(eq(patients.id, id));
     }),
 
   delete: protectedProcedure
